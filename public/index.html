@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es" style="color-scheme: dark;">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/@tsparticles/confetti@3.0.3/tsparticles.confetti.bundle.min.js"></script>
+    <title>Apocalipsis Quiz</title>
+</head>
+<style>
+    input:checked+label {
+        background: orange;
+    }
+
+    label {
+        border-radius: 4px;
+        cursor: pointer;
+        border: 1px solid #ffffff;
+    }
+
+    #opcionesBox {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        width: 100%;
+    }
+
+    .loader {
+        width: 200px;
+        height: 140px;
+        background: #979794;
+        box-sizing: border-box;
+        position: relative;
+        border-radius: 8px;
+        perspective: 1000px;
+        scale: 0.5;
+    }
+
+    .loader:before {
+        content: '';
+        position: absolute;
+        left: 10px;
+        right: 10px;
+        top: 10px;
+        bottom: 10px;
+        border-radius: 8px;
+        background: #f5f5f5 no-repeat;
+        background-size: 60px 10px;
+        background-image: linear-gradient(#ddd 100px, transparent 0),
+            linear-gradient(#ddd 100px, transparent 0),
+            linear-gradient(#ddd 100px, transparent 0),
+            linear-gradient(#ddd 100px, transparent 0),
+            linear-gradient(#ddd 100px, transparent 0),
+            linear-gradient(#ddd 100px, transparent 0);
+
+        background-position: 15px 30px, 15px 60px, 15px 90px,
+            105px 30px, 105px 60px, 105px 90px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.25);
+    }
+
+    .loader:after {
+        content: '';
+        position: absolute;
+        width: calc(50% - 10px);
+        right: 10px;
+        top: 10px;
+        bottom: 10px;
+        border-radius: 8px;
+        background: #fff no-repeat;
+        background-size: 60px 10px;
+        background-image: linear-gradient(#ddd 100px, transparent 0),
+            linear-gradient(#ddd 100px, transparent 0),
+            linear-gradient(#ddd 100px, transparent 0);
+        background-position: 50% 30px, 50% 60px, 50% 90px;
+        transform: rotateY(0deg);
+        transform-origin: left center;
+        animation: paging 1s linear infinite;
+    }
+
+
+    @keyframes paging {
+        to {
+            transform: rotateY(-180deg);
+        }
+    }
+</style>
+
+<body style="display: flex;flex-direction: column;gap: 8px;">
+    <h1 style="text-align: center;">Apocalipsis Quiz</h1>
+    <div id="quizBox" style="display: flex;flex-direction: column;align-items: center;">
+        <p style="text-align: center;background-color: #a5a5a5;color: #eee;padding: 4px;">Preciona el boton "GENERAR" para comenzar con la 1ra pregunta.</p>
+
+        <!-- <div class='loader'></div> -->
+
+    </div>
+    <button id="btnGenerar" style="padding: 8px;">GENERAR</button>
+
+    <script type="module">
+        window.addEventListener("load", () => {
+            localStorage.setItem("preguntasAnteriores", "")
+            console.log("hola")
+        })
+
+        btnGenerar.addEventListener('click', function (e) {
+            quizBox.innerHTML = "<div class='loader'></div>"
+            const msj = `
+                contexto: Eres un supremo maestro sobre el libro del Apocalipsis de la biblia Reina Valera 2000. Basate estrictamente en el texto de la biblia.
+
+                Las preguntas pueden ser de diferente dificultad aleatoriamente.
+
+                Que no sean iguales o similares a alguna de estas ${localStorage.getItem("preguntasAnteriores")}
+
+                Asegurate de que la quinta opcion sea siempre: "Ninguna de las anteriores"
+
+                solo devuelve un json con la siguiente estructura:
+
+                {
+                pregunta:string,
+                opciones:string[5],
+                respuesta:string,
+                dificultad:string,
+                referencia:string
+                }`;
+
+            e.preventDefault();
+
+            fetch('/api/sendMsj', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ "mensaje": msj })
+            })
+                .then(response => {
+                    if (response.ok) {
+
+                        quizBox.innerHTML = `
+                        <h3 id="tituloPregunta"></h3>
+                        <div id="opcionesBox"></div>
+                        `
+                        btnGenerar.textContent = "SIGUIENTE"
+                        return response.text()
+                    }
+                })
+                .then(respuestaIA => {
+                    // console.log(respuestaIA)
+                    const JSON_REGEX = /\{[\s\S]*?\}/;
+                    const preguntaApocalipsis = JSON.parse(respuestaIA.match(JSON_REGEX));
+                    console.log(preguntaApocalipsis)
+                    const { pregunta, respuesta, opciones, dificultad, referencia } = preguntaApocalipsis
+
+                    const preguntasAnteriores = localStorage.getItem("preguntasAnteriores")
+                    localStorage.setItem("preguntasAnteriores", preguntasAnteriores + ", " + pregunta)
+                    console.log(localStorage.getItem("preguntasAnteriores"))
+
+                    tituloPregunta.textContent = pregunta + " (" + dificultad + ") " + referencia
+
+                    opcionesBox.innerHTML = ""
+
+                    opciones.map((opcion, i) => {
+                        opcionesBox.innerHTML += `
+                        <input type="radio" name="opcion" id="${opcion + i}" value="${opcion}" style="display:none;">
+                            <label for="${opcion + i}" style="padding:8px;">
+                            ${opcion}</label>
+                        `
+                    })
+
+                    const opcionesHtml = document.querySelectorAll('input[type="radio"]')
+                    let confettiStart = false
+                    opcionesHtml.forEach((opcion) => {
+                        opcion.addEventListener('click', function () {
+                            if (opcion.value === respuesta) {
+                                // alert("Correcto")
+                                opcion.nextElementSibling.style.background = "green"
+                                opcion.nextElementSibling.style.color = "white"
+                                if (!confettiStart) {
+                                    confetti({
+                                        particleCount: 100,
+                                        spread: 70,
+                                        origin: { y: 0.6 },
+                                    });
+                                    confettiStart = true
+                                }
+                            } else {
+                                opcion.nextElementSibling.style.background = "tomato"
+                                opcion.nextElementSibling.style.color = "white"
+                                // alert("Incorrecto")
+                            }
+                        })
+                    })
+                })
+        })
+
+    </script>
+
+    <footer>© Desarrollado por <a href="https://github.com/keyjuusan" target="_blank">Heyker V.</a></footer>
+</body>
+
+</html>
